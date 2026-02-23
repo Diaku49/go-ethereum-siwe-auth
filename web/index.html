@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Go + SIWE + Ankr Demo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- Ethers v5 -->
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <!-- SIWE (browser bundle) -->
+    <script src="https://cdn.jsdelivr.net/npm/siwe@2.3.2/dist/siwe.umd.min.js"></script>
+
+    <style>
+      :root {
+        --bg: #0b1220;
+        --card: rgba(255, 255, 255, 0.06);
+        --card2: rgba(255, 255, 255, 0.09);
+        --text: rgba(255, 255, 255, 0.92);
+        --muted: rgba(255, 255, 255, 0.65);
+        --border: rgba(255, 255, 255, 0.12);
+        --shadow: 0 18px 60px rgba(0, 0, 0, 0.45);
+        --accent: #7c3aed;
+        --accent2: #22c55e;
+        --warn: #f59e0b;
+        --danger: #ef4444;
+        --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+          monospace;
+        --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji",
+          "Segoe UI Emoji";
+      }
+
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #f6f7fb;
+          --card: rgba(0, 0, 0, 0.04);
+          --card2: rgba(0, 0, 0, 0.06);
+          --text: rgba(0, 0, 0, 0.88);
+          --muted: rgba(0, 0, 0, 0.6);
+          --border: rgba(0, 0, 0, 0.12);
+          --shadow: 0 18px 60px rgba(0, 0, 0, 0.08);
+        }
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: var(--sans);
+        background:
+          radial-gradient(900px 500px at 10% 0%, rgba(124, 58, 237, 0.25), transparent 60%),
+          radial-gradient(900px 500px at 90% 10%, rgba(34, 197, 94, 0.18), transparent 55%),
+          var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+      }
+
+      .wrap {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 28px 16px 60px;
+      }
+
+      .topbar {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        margin-bottom: 18px;
+      }
+
+      .title {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 26px;
+        letter-spacing: -0.02em;
+      }
+      .subtitle {
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .pillrow {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      .pill {
+        display: inline-flex;
+        gap: 8px;
+        align-items: center;
+        padding: 8px 10px;
+        border: 1px solid var(--border);
+        background: var(--card);
+        border-radius: 999px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 999px;
+        background: var(--warn);
+        box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.15);
+      }
+      .dot.ok {
+        background: var(--accent2);
+        box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.18);
+      }
+      .dot.bad {
+        background: var(--danger);
+        box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.18);
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 1.05fr 0.95fr;
+        gap: 16px;
+      }
+
+      @media (max-width: 940px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .card {
+        background: linear-gradient(180deg, var(--card), transparent);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+
+      .cardHeader {
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.02);
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+      }
+
+      .cardHeader h2 {
+        margin: 0;
+        font-size: 14px;
+        color: var(--muted);
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .cardBody { padding: 16px; }
+
+      .field {
+        display: grid;
+        gap: 8px;
+        margin-bottom: 14px;
+      }
+
+      label {
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .input {
+        width: 100%;
+        padding: 12px 12px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: var(--card2);
+        color: var(--text);
+        outline: none;
+      }
+      .input:focus {
+        border-color: rgba(124, 58, 237, 0.6);
+        box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.15);
+      }
+
+      .row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      .btn {
+        appearance: none;
+        border: 1px solid var(--border);
+        background: var(--card2);
+        color: var(--text);
+        padding: 11px 12px;
+        border-radius: 12px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 13px;
+        transition: transform 0.06s ease, background 0.15s ease, border-color 0.15s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .btn:hover {
+        border-color: rgba(124, 58, 237, 0.45);
+        background: rgba(124, 58, 237, 0.12);
+      }
+      .btn:active { transform: translateY(1px); }
+      .btn.primary {
+        background: rgba(124, 58, 237, 0.18);
+        border-color: rgba(124, 58, 237, 0.55);
+      }
+      .btn.good {
+        background: rgba(34, 197, 94, 0.14);
+        border-color: rgba(34, 197, 94, 0.45);
+      }
+      .btn.danger {
+        background: rgba(239, 68, 68, 0.13);
+        border-color: rgba(239, 68, 68, 0.45);
+      }
+      .btn:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .step {
+        display: grid;
+        grid-template-columns: 22px 1fr auto;
+        gap: 12px;
+        padding: 12px;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.02);
+        margin-bottom: 10px;
+        align-items: center;
+      }
+
+      .num {
+        width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        font-size: 12px;
+        font-weight: 800;
+        background: rgba(124, 58, 237, 0.2);
+        border: 1px solid rgba(124, 58, 237, 0.4);
+      }
+
+      .stepTitle {
+        font-weight: 700;
+        font-size: 13px;
+        margin-bottom: 2px;
+      }
+      .stepHint {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .kv {
+        display: grid;
+        grid-template-columns: 120px 1fr;
+        gap: 8px 10px;
+        font-size: 12px;
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.02);
+        border-radius: 14px;
+      }
+      .k { color: var(--muted); }
+      .v { font-family: var(--mono); overflow-wrap: anywhere; }
+
+      pre {
+        margin: 0;
+        padding: 14px;
+        border-radius: 14px;
+        border: 1px solid var(--border);
+        background: rgba(0, 0, 0, 0.22);
+        overflow: auto;
+        min-height: 220px;
+        font-family: var(--mono);
+        font-size: 12px;
+        line-height: 1.45;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      @media (prefers-color-scheme: light) {
+        pre { background: rgba(0, 0, 0, 0.05); }
+      }
+
+      .toast {
+        position: fixed;
+        bottom: 18px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 10px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: rgba(0, 0, 0, 0.55);
+        color: #fff;
+        font-size: 13px;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+      }
+      .toast.show { opacity: 1; }
+    </style>
+  </head>
+
+  <body>
+    <div class="wrap">
+      <div class="topbar">
+        <div class="title">
+          <h1>Go + SIWE + Ankr Demo</h1>
+          <div class="subtitle">Minimal dApp login (SIWE) + JWT + Ethereum RPC (Ankr) — all in one file.</div>
+        </div>
+
+        <div class="pillrow">
+          <div class="pill"><span id="dotWallet" class="dot"></span> Wallet: <span id="walletState">disconnected</span></div>
+          <div class="pill"><span id="dotAuth" class="dot"></span> Auth: <span id="authState">not logged in</span></div>
+          <div class="pill"><span id="dotNet" class="dot"></span> Chain: <span id="chainState">—</span></div>
+        </div>
+      </div>
+
+      <div class="grid">
+        <!-- LEFT: actions -->
+        <div class="card">
+          <div class="cardHeader">
+            <h2>Controls</h2>
+            <button id="btnReset" class="btn danger" type="button">Reset</button>
+          </div>
+          <div class="cardBody">
+            <div class="field">
+              <label for="addr">Address (optional for balance)</label>
+              <input id="addr" class="input" placeholder="0x..." />
+            </div>
+
+            <div class="step">
+              <div class="num">1</div>
+              <div>
+                <div class="stepTitle">Connect wallet</div>
+                <div class="stepHint">Uses MetaMask (or any injected provider) to get your address.</div>
+              </div>
+              <button id="btnConnect" class="btn primary" type="button">Connect</button>
+            </div>
+
+            <div class="step">
+              <div class="num">2</div>
+              <div>
+                <div class="stepTitle">SIWE login</div>
+                <div class="stepHint">Fetch nonce → build SIWE message → sign → verify → receive JWT.</div>
+              </div>
+              <button id="btnLogin" class="btn good" type="button" disabled>Sign & Login</button>
+            </div>
+
+            <div class="step">
+              <div class="num">3</div>
+              <div>
+                <div class="stepTitle">Call protected endpoint</div>
+                <div class="stepHint">Uses JWT in Authorization header.</div>
+              </div>
+              <button id="btnChain" class="btn" type="button" disabled>/eth/chain</button>
+            </div>
+
+            <div class="step">
+              <div class="num">4</div>
+              <div>
+                <div class="stepTitle">Read balance</div>
+                <div class="stepHint">Fetches ETH balance from RPC (Ankr).</div>
+              </div>
+              <button id="btnBalance" class="btn" type="button" disabled>/eth/balance</button>
+            </div>
+
+            <div class="row" style="margin-top: 12px;">
+              <button id="btnCopyJwt" class="btn" type="button" disabled>Copy JWT</button>
+              <button id="btnCopyAddr" class="btn" type="button" disabled>Copy Address</button>
+            </div>
+
+            <div style="margin-top: 14px;" class="kv">
+              <div class="k">Address</div><div class="v" id="kvAddress">—</div>
+              <div class="k">JWT</div><div class="v" id="kvJwt">—</div>
+              <div class="k">Backend</div><div class="v" id="kvBackend">—</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT: output -->
+        <div class="card">
+          <div class="cardHeader">
+            <h2>Output</h2>
+            <div class="row">
+              <button id="btnClear" class="btn" type="button">Clear</button>
+            </div>
+          </div>
+          <div class="cardBody">
+            <pre id="out">Ready.</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast">Copied</div>
+
+    <script>
+      let provider, signer, address, token, chainId;
+
+      const $ = (id) => document.getElementById(id);
+      const outEl = $("out");
+
+      function api() {
+       return window.location.origin;
+      }
+
+      function prettyAddr(a) {
+        if (!a) return "—";
+        return a.slice(0, 6) + "…" + a.slice(-4);
+      }
+
+      function setOutput(obj) {
+        outEl.textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+      }
+
+      async function fetchJSON(url, opts = {}) {
+        const res = await fetch(url, {
+          headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
+          ...opts,
+        });
+
+        const text = await res.text();
+        let data;
+        try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${typeof data === "string" ? data : JSON.stringify(data)}`);
+        return data;
+      }
+
+      function toast(msg) {
+        const t = $("toast");
+        t.textContent = msg;
+        t.classList.add("show");
+        setTimeout(() => t.classList.remove("show"), 1100);
+      }
+
+      async function copyToClipboard(text) {
+        try {
+          await navigator.clipboard.writeText(text);
+          toast("Copied");
+        } catch {
+          toast("Copy failed");
+        }
+      }
+
+      function syncUI() {
+        // Pills
+        $("walletState").textContent = address ? prettyAddr(address) : "disconnected";
+        $("authState").textContent = token ? "logged in" : "not logged in";
+        $("chainState").textContent = chainId ? String(chainId) : "—";
+
+        $("dotWallet").className = "dot " + (address ? "ok" : "");
+        $("dotAuth").className = "dot " + (token ? "ok" : "");
+        $("dotNet").className = "dot " + (chainId ? "ok" : "");
+
+        // Buttons
+        $("btnLogin").disabled = !signer;
+        $("btnChain").disabled = !token;
+        $("btnBalance").disabled = !token;
+        $("btnCopyJwt").disabled = !token;
+        $("btnCopyAddr").disabled = !address;
+
+        // KV
+        $("kvAddress").textContent = address || "—";
+        $("kvJwt").textContent = token ? token.slice(0, 18) + "…" + token.slice(-18) : "—";
+        $("kvBackend").textContent = api();
+
+        // Address field auto-fill
+        if (address && !$("addr").value) $("addr").value = address;
+      }
+
+      $("btnClear").onclick = () => setOutput("Ready.");
+      $("btnReset").onclick = () => {
+        provider = null; signer = null; address = null; token = null; chainId = null;
+        $("addr").value = "";
+        setOutput("Reset.");
+        syncUI();
+      };
+
+      $("btnCopyJwt").onclick = () => token && copyToClipboard(token);
+      $("btnCopyAddr").onclick = () => address && copyToClipboard(address);
+
+      $("btnConnect").onclick = async () => {
+        try {
+          if (!window.ethereum) {
+            setOutput("No injected wallet found. Install MetaMask to test this demo.");
+            return;
+          }
+
+          provider = new ethers.providers.Web3Provider(window.ethereum);
+          await provider.send("eth_requestAccounts", []);
+          signer = provider.getSigner();
+          address = await signer.getAddress();
+
+          const network = await provider.getNetwork();
+          chainId = network.chainId;
+
+          setOutput({ connected: true, address, chainId });
+          syncUI();
+        } catch (e) {
+          setOutput(String(e?.message || e));
+        }
+      };
+
+      $("btnLogin").onclick = async () => {
+        try {
+          if (!signer) { setOutput("Connect wallet first."); return; }
+
+          // 1) Get nonce from backend
+          const { nonce } = await fetchJSON(`${api()}/auth/nonce`);
+
+          // 2) Build SIWE message (domain + uri must match backend config)
+          // If you serve this page from the Go server, these will be localhost:8080 and http://localhost:8080
+          const domain = window.location.host || "localhost:8080";
+          const uri = window.location.origin || "http://localhost:8080";
+
+          const network = await provider.getNetwork();
+          chainId = network.chainId;
+
+          const msg = new siwe.SiweMessage({
+            domain,
+            address,
+            statement: "Sign in to GoEthDemo",
+            uri,
+            version: "1",
+            chainId,
+            nonce,
+          });
+
+          const messageToSign = msg.prepareMessage();
+
+          // 3) Ask wallet to sign
+          const signature = await signer.signMessage(messageToSign);
+
+          // 4) Verify on backend and receive JWT
+          const resp = await fetchJSON(`${api()}/auth/verify`, {
+            method: "POST",
+            body: JSON.stringify({ message: messageToSign, signature }),
+          });
+
+          token = resp.token;
+          setOutput({ login: "ok", address: resp.address, tokenPreview: token.slice(0, 24) + "..." });
+          syncUI();
+        } catch (e) {
+          setOutput(String(e?.message || e));
+        }
+      };
+
+      $("btnChain").onclick = async () => {
+        try {
+          if (!token) { setOutput("Login first."); return; }
+          const data = await fetchJSON(`${api()}/eth/chain`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          setOutput(data);
+        } catch (e) {
+          setOutput(String(e?.message || e));
+        }
+      };
+
+      $("btnBalance").onclick = async () => {
+        try {
+          if (!token) { setOutput("Login first."); return; }
+          const a = $("addr").value || address;
+          const data = await fetchJSON(`${api()}/eth/balance?address=${encodeURIComponent(a)}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          setOutput(data);
+        } catch (e) {
+          setOutput(String(e?.message || e));
+        }
+      };
+
+      // Initialize UI
+      syncUI();
+    </script>
+  </body>
+</html>
